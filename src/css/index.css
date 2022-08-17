@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Yu Gothic",
+    "YuGothic", Verdana, Meiryo, sans-serif;
+  color: #1c1c1c;
+  background-color: #f7f6f3;
+}
