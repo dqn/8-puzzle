@@ -32,7 +32,7 @@ const Piece: React.FC<PieceProps> = ({ piece, onClick }) => {
   return (
     <button
       className={clsx(
-        "absolute h-24 w-24 border text-3xl font-bold duration-[25ms]",
+        "absolute h-24 w-24 border text-3xl font-bold duration-[40ms]",
         match(row)
           .with(0, () => "translate-y-0")
           .with(1, () => "translate-y-24")
@@ -81,42 +81,90 @@ function shuffle<T>([...arr]: T[]): T[] {
   return arr;
 }
 
-function getInitialPieces(): Piece[] {
-  return shuffle([...range(0, 8)]).map((num, i) => ({
-    num: num + 1,
-    pos: {
-      row: Math.floor(i / 3),
-      col: i % 3,
-    },
-  }));
+function calcPosBySeed(seed: number): Pos {
+  return {
+    row: Math.floor(seed / 3),
+    col: seed % 3,
+  };
+}
+
+function getInitialPieces(): { pieces: Piece[]; emptyPos: Pos } {
+  const seeds = shuffle([...range(0, 9)]);
+  const emptyPosSeed = seeds.shift()!; // drop a piece
+
+  return {
+    pieces: seeds.map((seed, i) => ({
+      num: i + 1,
+      pos: calcPosBySeed(seed),
+    })),
+    emptyPos: calcPosBySeed(emptyPosSeed),
+  };
 }
 
 const Top: NextPage = () => {
   const [pieces, setPieces] = useState<Piece[]>([]);
-  const emptyPosRef = useRef<Pos>({ row: 2, col: 2 });
+  const emptyPosRef = useRef<Pos>({ row: 0, col: 0 });
 
-  useEffect(() => {
-    setPieces(getInitialPieces());
+  const reset = useCallback(() => {
+    const { pieces, emptyPos } = getInitialPieces();
+    setPieces(pieces);
+    emptyPosRef.current = emptyPos;
   }, []);
 
-  const handleClick = useCallback((piece: Piece) => {
-    console.log(piece);
+  useEffect(() => {
+    reset();
+  }, [reset]);
 
+  const handlePieceClick = useCallback((piece: Piece) => {
     const piecePos = piece.pos;
     const emptyPos = emptyPosRef.current;
 
-    if (!isSidePos(piecePos, emptyPos)) {
+    if (
+      Math.abs(piecePos.row - emptyPos.row) === 2 &&
+      piecePos.col === emptyPos.col
+    ) {
+      setPieces((pieces) =>
+        pieces.map((p) =>
+          p.pos.col === emptyPos.col
+            ? {
+                ...p,
+                pos: {
+                  row: p.pos.row + (piecePos.row < emptyPos.row ? 1 : -1),
+                  col: p.pos.col,
+                },
+              }
+            : p,
+        ),
+      );
+    } else if (
+      Math.abs(piecePos.col - emptyPos.col) === 2 &&
+      piecePos.row === emptyPos.row
+    ) {
+      setPieces((pieces) =>
+        pieces.map((p) =>
+          p.pos.row === emptyPos.row
+            ? {
+                ...p,
+                pos: {
+                  row: p.pos.row,
+                  col: p.pos.col + (piecePos.col < emptyPos.col ? 1 : -1),
+                },
+              }
+            : p,
+        ),
+      );
+    } else if (isSidePos(piecePos, emptyPos)) {
+      emptyPosRef.current = { ...piece.pos };
+      setPieces((pieces) =>
+        pieces.map((piece) =>
+          isSamePos(piece.pos, piecePos)
+            ? { ...piece, pos: { ...emptyPos } }
+            : piece,
+        ),
+      );
+    } else {
       return;
     }
-
-    emptyPosRef.current = { ...piece.pos };
-    setPieces((pieces) =>
-      pieces.map((piece) =>
-        isSamePos(piece.pos, piecePos)
-          ? { ...piece, pos: { ...emptyPos } }
-          : piece,
-      ),
-    );
 
     emptyPosRef.current = { ...piece.pos };
   }, []);
@@ -124,7 +172,7 @@ const Top: NextPage = () => {
   return (
     <div className="flex min-h-screen flex-col">
       <main className="grid flex-1 place-content-center overflow-x-hidden">
-        <Puzzle pieces={pieces} onClick={handleClick} />
+        <Puzzle pieces={pieces} onClick={handlePieceClick} />
       </main>
       <footer className="py-2 text-center text-xs">©︎ 2022 dqn</footer>
     </div>
