@@ -1,5 +1,5 @@
 import type { NextPage } from "next";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import { match } from "ts-pattern";
 
@@ -27,6 +27,10 @@ type PieceProps = {
 };
 
 const Piece: React.FC<PieceProps> = ({ piece, onClick }) => {
+  if (piece.num === 9) {
+    return null;
+  }
+
   const { row, col } = piece.pos;
 
   return (
@@ -88,27 +92,28 @@ function calcPosBySeed(seed: number): Pos {
   };
 }
 
-function getInitialPieces(): { pieces: Piece[]; emptyPos: Pos } {
-  const seeds = shuffle([...range(0, 9)]);
-  const emptyPosSeed = seeds.shift()!; // drop a piece
-
-  return {
-    pieces: seeds.map((seed, i) => ({
-      num: i + 1,
-      pos: calcPosBySeed(seed),
-    })),
-    emptyPos: calcPosBySeed(emptyPosSeed),
-  };
+function getInitialPieces(): Piece[] {
+  return [...range(0, 9)].map((i) => ({
+    num: i + 1,
+    pos: calcPosBySeed(i),
+  }));
 }
 
 const Top: NextPage = () => {
   const [pieces, setPieces] = useState<Piece[]>([]);
-  const emptyPosRef = useRef<Pos>({ row: 0, col: 0 });
 
   const reset = useCallback(() => {
-    const { pieces, emptyPos } = getInitialPieces();
+    let pieces = getInitialPieces();
+
+    for (const _ of range(0, 100)) {
+      const empty = pieces.find((p) => p.num === 9)!;
+      const target = shuffle(pieces).find(
+        (p) => p.pos.col === empty.pos.col || p.pos.row === empty.pos.row,
+      )!;
+      pieces = movePiece(pieces, target.pos);
+    }
+
     setPieces(pieces);
-    emptyPosRef.current = emptyPos;
   }, []);
 
   useEffect(() => {
@@ -117,57 +122,62 @@ const Top: NextPage = () => {
 
   const handlePieceClick = useCallback((piece: Piece) => {
     const piecePos = piece.pos;
-    const emptyPos = emptyPosRef.current;
+    setPieces((pieces) => movePiece(pieces, piecePos));
+  }, []);
 
-    if (
-      Math.abs(piecePos.row - emptyPos.row) === 2 &&
-      piecePos.col === emptyPos.col
-    ) {
-      setPieces((pieces) =>
-        pieces.map((p) =>
-          p.pos.col === emptyPos.col
-            ? {
-                ...p,
-                pos: {
-                  row: p.pos.row + (piecePos.row < emptyPos.row ? 1 : -1),
-                  col: p.pos.col,
-                },
-              }
-            : p,
-        ),
+  const movePiece = (pieces: Piece[], pos: Pos) => {
+    const emptyPos = pieces.find(({ num }) => num === 9)!.pos;
+
+    if (Math.abs(pos.row - emptyPos.row) === 2 && pos.col === emptyPos.col) {
+      pieces = pieces.map((p) =>
+        p.pos.col === emptyPos.col
+          ? {
+              ...p,
+              pos: {
+                row: (p.pos.row + (pos.row < emptyPos.row ? 1 : 2)) % 3,
+                col: p.pos.col,
+              },
+            }
+          : p,
       );
+      return pieces;
     } else if (
-      Math.abs(piecePos.col - emptyPos.col) === 2 &&
-      piecePos.row === emptyPos.row
+      Math.abs(pos.col - emptyPos.col) === 2 &&
+      pos.row === emptyPos.row
     ) {
-      setPieces((pieces) =>
-        pieces.map((p) =>
-          p.pos.row === emptyPos.row
-            ? {
-                ...p,
-                pos: {
-                  row: p.pos.row,
-                  col: p.pos.col + (piecePos.col < emptyPos.col ? 1 : -1),
-                },
-              }
-            : p,
-        ),
+      pieces = pieces.map((p) =>
+        p.pos.row === emptyPos.row
+          ? {
+              ...p,
+              pos: {
+                row: p.pos.row,
+                col: (p.pos.col + (pos.col < emptyPos.col ? 1 : 2)) % 3,
+              },
+            }
+          : p,
       );
-    } else if (isSidePos(piecePos, emptyPos)) {
-      emptyPosRef.current = { ...piece.pos };
-      setPieces((pieces) =>
-        pieces.map((piece) =>
-          isSamePos(piece.pos, piecePos)
-            ? { ...piece, pos: { ...emptyPos } }
-            : piece,
-        ),
+      return pieces;
+    } else if (isSidePos(pos, emptyPos)) {
+      pieces = pieces.map((piece) =>
+        isSamePos(piece.pos, pos) ? { ...piece, pos: { ...emptyPos } } : piece,
       );
-    } else {
-      return;
+      emptyPos.row = pos.row;
+      emptyPos.col = pos.col;
+      return pieces;
     }
 
-    emptyPosRef.current = { ...piece.pos };
-  }, []);
+    return pieces;
+  };
+
+  useEffect(() => {
+    if (
+      pieces.every((piece) =>
+        isSamePos(piece.pos, calcPosBySeed(piece.num - 1)),
+      )
+    ) {
+      console.log("clear!");
+    }
+  }, [pieces]);
 
   return (
     <div className="flex min-h-screen flex-col">
