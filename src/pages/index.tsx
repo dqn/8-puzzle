@@ -36,7 +36,7 @@ const Piece: React.FC<PieceProps> = ({ piece, onClick }) => {
   return (
     <button
       className={clsx(
-        "absolute h-24 w-24 border text-3xl font-bold duration-[40ms]",
+        "absolute h-24 w-24 border text-5xl font-bold",
         match(row)
           .with(0, () => "translate-y-0")
           .with(1, () => "translate-y-24")
@@ -101,8 +101,14 @@ function getInitialPieces(): Piece[] {
 
 const Top: NextPage = () => {
   const [pieces, setPieces] = useState<Piece[]>([]);
+  const [time, setTime] = useState(0);
+  const [timerId, setTimerId] = useState<null | NodeJS.Timer>(null);
 
   const reset = useCallback(() => {
+    if (timerId !== null) {
+      clearInterval(timerId);
+    }
+
     let pieces = getInitialPieces();
 
     for (const _ of range(0, 100)) {
@@ -114,11 +120,17 @@ const Top: NextPage = () => {
     }
 
     setPieces(pieces);
-  }, []);
+
+    const startTime = Date.now();
+    const id = setInterval(() => {
+      setTime(Date.now() - startTime);
+    }, 10);
+    setTimerId(id);
+  }, [timerId]);
 
   useEffect(() => {
     reset();
-  }, [reset]);
+  }, []);
 
   const handlePieceClick = useCallback((piece: Piece) => {
     const piecePos = piece.pos;
@@ -170,12 +182,20 @@ const Top: NextPage = () => {
   };
 
   useEffect(() => {
-    if (
-      pieces.every((piece) =>
-        isSamePos(piece.pos, calcPosBySeed(piece.num - 1)),
-      )
-    ) {
-      console.log("clear!");
+    if (pieces.length === 0) {
+      return;
+    }
+
+    const isCorrect = pieces.every((piece) =>
+      isSamePos(piece.pos, calcPosBySeed(piece.num - 1)),
+    );
+
+    if (!isCorrect) {
+      return;
+    }
+
+    if (timerId !== null) {
+      clearInterval(timerId);
     }
   }, [pieces]);
 
@@ -183,6 +203,15 @@ const Top: NextPage = () => {
     <div className="flex min-h-screen flex-col">
       <main className="grid flex-1 place-content-center overflow-x-hidden">
         <Puzzle pieces={pieces} onClick={handlePieceClick} />
+        <div className="text-bold mt-8 text-center font-mono text-3xl">
+          {(time / 1000).toFixed(2)}
+        </div>
+        <button
+          className="text-bold mt-4 rounded-lg border bg-blue-700 py-3 text-center text-xl text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"
+          onClick={reset}
+        >
+          RESET
+        </button>
       </main>
       <footer className="py-2 text-center text-xs">©︎ 2022 dqn</footer>
     </div>
